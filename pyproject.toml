@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "drf-directmessages"
+version = "0.0.1"
+description = "An API allowing users to directly message each other."
+authors = ["Garreth Cain <garrethccain@gmail.com>"]
+readme = "README.md"
+packages = [{include = "drf_directmessages"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+django = "^4.2.1"
+djangorestframework = "^3.14.0"
+
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.3.1"
+requests-mock = "^1.10.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
