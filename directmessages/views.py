@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 
 from rest_framework import generics, status, views
+from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
@@ -11,6 +12,7 @@ from .apps import Inbox
 from .models import Message
 from .serializers import (
     ConversationSerializer,
+    ConversationUnreadSerializer,
     MessageSendSerializer,
     MessageSerializer,
     UnreadMessageSerializer,
@@ -18,6 +20,16 @@ from .serializers import (
 
 
 User = get_user_model()
+
+
+class MessageCursorPagination(CursorPagination):
+    ordering = "-sent_at"
+    page_size = 50
+
+
+class ConversationCursorPagination(CursorPagination):
+    ordering = "-pk"
+    page_size = 50
 
 
 class MessageViewBase:
@@ -39,16 +51,47 @@ class UnreadMessagesView(MessageViewBase, views.APIView):
 
 class ConversationListView(MessageViewBase, generics.ListAPIView):
     serializer_class = ConversationSerializer
+    pagination_class = ConversationCursorPagination
 
     def get_queryset(self):
         user = self.get_user()
         return User.objects.filter(
-            Q(sent_dm__recipient=user) | Q(received_dm__sender=user)
+            Q(sent_dm__recipient=user, sent_dm__hidden_for_sender__isnull=True)
+            | Q(
+                received_dm__sender=user, received_dm__hidden_for_recipient__isnull=True
+            )
         ).distinct()
+
+
+class ConversationUnreadView(MessageViewBase, generics.ListAPIView):
+    serializer_class = ConversationUnreadSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return []
+
+    def list(self, request, *args, **kwargs):
+        user = self.get_user()
+        counts = Inbox.get_unread_counts_per_conversation(user)
+        if not counts:
+            return Response([])
+
+        partners = User.objects.filter(id__in=counts.keys())
+        data = [
+            {
+                "partner_id": p.id,
+                "partner_username": p.username,
+                "unread_count": counts[p.id],
+            }
+            for p in partners
+        ]
+        serializer = ConversationUnreadSerializer(data, many=True)
+        return Response(serializer.data)
 
 
 class MessageListView(MessageViewBase, generics.ListCreateAPIView):
     serializer_class = MessageSerializer
+    pagination_class = MessageCursorPagination
 
     def get_queryset(self):
         user1 = self.get_user()
@@ -77,6 +120,20 @@ class MessageListView(MessageViewBase, generics.ListCreateAPIView):
             ).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class MessageDeleteView(MessageViewBase, generics.DestroyAPIView):
+    def destroy(self, request, *args, **kwargs):
+        message_id = kwargs.get("pk")
+        user = self.get_user()
+        success = Inbox.delete_message(user, message_id)
+
+        if not success:
+            return Response(
+                {"detail": "Message not found or not authorized."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class MessageSendView(MessageViewBase, generics.CreateAPIView):

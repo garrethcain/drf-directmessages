@@ -22,6 +22,8 @@ class Message(models.Model):
     )
     sent_at = models.DateTimeField("sent at", auto_now_add=True)
     read_at = models.DateTimeField("read at", null=True, blank=True)
+    hidden_for_sender = models.DateTimeField(null=True, blank=True)
+    hidden_for_recipient = models.DateTimeField(null=True, blank=True)
 
     @property
     def unread(self):

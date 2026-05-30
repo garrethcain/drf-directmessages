@@ -12,7 +12,9 @@ class UnreadMessageSerializer(serializers.ModelSerializer):
     count = serializers.SerializerMethodField()
 
     def get_count(self, obj):
-        return Message.objects.filter(read_at=None, recipient=obj).count()
+        return Message.objects.filter(
+            read_at=None, recipient=obj, hidden_for_recipient__isnull=True
+        ).count()
 
     class Meta:
         model = User
@@ -31,6 +33,12 @@ class ConversationSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
         )
+
+
+class ConversationUnreadSerializer(serializers.Serializer):
+    partner_id = serializers.IntegerField()
+    partner_username = serializers.CharField()
+    unread_count = serializers.IntegerField()
 
 
 class MessageSerializer(serializers.ModelSerializer):

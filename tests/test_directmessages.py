@@ -176,14 +176,14 @@ class ConversationListAPIViewTestCase(TestCase):
     def test_empty_conversations(self):
         response = self.client.get("/conversations/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 0)
+        self.assertEqual(len(response.data["results"]), 0)
 
     def test_conversations_returns_partners(self):
         Inbox.send_message(self.user, self.friend, "Hi friend")
         response = self.client.get("/conversations/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["id"], self.friend.id)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["id"], self.friend.id)
 
     def test_conversations_excludes_self(self):
         self.assertNotIn(self.user, Inbox.get_conversations(self.user))
@@ -207,7 +207,7 @@ class MessageListAPIViewTestCase(TestCase):
 
         response = self.client.get(f"/conversations/{self.friend.id}/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data["results"]), 2)
 
     def test_get_conversation_marks_inbound_as_read(self):
         Inbox.send_message(self.friend, self.user, "Unread msg")
@@ -254,14 +254,14 @@ class MessageListAPIViewTestCase(TestCase):
         Inbox.send_message(self.friend, self.user, "From friend")
 
         response = self.client.get(f"/conversations/{self.friend.id}/")
-        inbound = [m for m in response.data if m["direction"] == "in"]
+        inbound = [m for m in response.data["results"] if m["direction"] == "in"]
         self.assertEqual(len(inbound), 1)
 
     def test_message_direction_outgoing(self):
         Inbox.send_message(self.user, self.friend, "To friend")
 
         response = self.client.get(f"/conversations/{self.friend.id}/")
-        outbound = [m for m in response.data if m["direction"] == "out"]
+        outbound = [m for m in response.data["results"] if m["direction"] == "out"]
         self.assertEqual(len(outbound), 1)
 
 
@@ -308,4 +308,174 @@ class MessageSendAPIViewTestCase(TestCase):
             f"/send/{self.friend.id}/",
             {"content": "Hello"},
         )
+        self.assertEqual(response.status_code, 403)
+
+
+class SoftDeleteTestCase(TestCase):
+    def setUp(self):
+        self.user = create_user("deleter", "deleter@tests.com")
+        self.friend = create_user("friend", "friend@tests.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_sender_deletes_hides_for_sender_only(self):
+        msg, _ = Inbox.send_message(self.user, self.friend, "Oops")
+
+        response = self.client.delete(f"/messages/{msg.id}/")
+        self.assertEqual(response.status_code, 204)
+
+        conversation = Inbox.get_conversation(self.user, self.friend)
+        self.assertEqual(conversation.count(), 0)
+
+        conversation_friend = Inbox.get_conversation(self.friend, self.user)
+        self.assertEqual(conversation_friend.count(), 1)
+
+    def test_recipient_deletes_hides_for_recipient_only(self):
+        msg, _ = Inbox.send_message(self.friend, self.user, "Hello")
+
+        response = self.client.delete(f"/messages/{msg.id}/")
+        self.assertEqual(response.status_code, 204)
+
+        conversation = Inbox.get_conversation(self.user, self.friend)
+        self.assertEqual(conversation.count(), 0)
+
+        conversation_friend = Inbox.get_conversation(self.friend, self.user)
+        self.assertEqual(conversation_friend.count(), 1)
+
+    def test_both_delete_fully_hides(self):
+        msg, _ = Inbox.send_message(self.user, self.friend, "Bye")
+
+        self.client.delete(f"/messages/{msg.id}/")
+
+        friend_client = APIClient()
+        friend_client.force_authenticate(user=self.friend)
+        friend_client.delete(f"/messages/{msg.id}/")
+
+        conversation_user = Inbox.get_conversation(self.user, self.friend)
+        conversation_friend = Inbox.get_conversation(self.friend, self.user)
+        self.assertEqual(conversation_user.count(), 0)
+        self.assertEqual(conversation_friend.count(), 0)
+
+    def test_delete_nonexistent_message_returns_404(self):
+        response = self.client.delete("/messages/99999/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_delete_requires_auth(self):
+        msg, _ = Inbox.send_message(self.user, self.friend, "Secret")
+        anon_client = APIClient()
+        response = anon_client.delete(f"/messages/{msg.id}/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_deleted_message_excluded_from_unread(self):
+        msg, _ = Inbox.send_message(self.friend, self.user, "Unread")
+        self.assertEqual(Inbox.get_unread_messages(self.user).count(), 1)
+
+        self.client.delete(f"/messages/{msg.id}/")
+        self.assertEqual(Inbox.get_unread_messages(self.user).count(), 0)
+
+    def test_deleted_message_excluded_from_conversations(self):
+        msg, _ = Inbox.send_message(self.user, self.friend, "Only message")
+        self.client.delete(f"/messages/{msg.id}/")
+
+        partners = Inbox.get_conversations(self.user)
+        self.assertNotIn(self.friend, partners)
+
+    def test_double_delete_idempotent(self):
+        msg, _ = Inbox.send_message(self.user, self.friend, "Test")
+
+        self.client.delete(f"/messages/{msg.id}/")
+        response = self.client.delete(f"/messages/{msg.id}/")
+        self.assertEqual(response.status_code, 204)
+
+
+class PaginationTestCase(TestCase):
+    def setUp(self):
+        self.user = create_user("pager", "pager@tests.com")
+        self.friend = create_user("pal", "pal@tests.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_conversations_paginated_response_shape(self):
+        response = self.client.get("/conversations/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("results", response.data)
+        self.assertIn("next", response.data)
+        self.assertIn("previous", response.data)
+
+    def test_messages_paginated_response_shape(self):
+        Inbox.send_message(self.user, self.friend, "Hi")
+        response = self.client.get(f"/conversations/{self.friend.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("results", response.data)
+        self.assertIn("next", response.data)
+        self.assertIn("previous", response.data)
+
+    def test_messages_pagination_cursor(self):
+        for i in range(55):
+            Inbox.send_message(self.user, self.friend, f"Message {i}")
+
+        response = self.client.get(f"/conversations/{self.friend.id}/")
+        self.assertEqual(len(response.data["results"]), 50)
+        self.assertIsNotNone(response.data["next"])
+
+        response2 = self.client.get(response.data["next"])
+        self.assertEqual(len(response2.data["results"]), 5)
+        self.assertIsNone(response2.data["next"])
+
+
+class ConversationUnreadAPITestCase(TestCase):
+    def setUp(self):
+        self.user = create_user("reader", "reader@tests.com")
+        self.friend1 = create_user("pal1", "pal1@tests.com")
+        self.friend2 = create_user("pal2", "pal2@tests.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_no_conversations_returns_empty(self):
+        response = self.client.get("/conversations/unread/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+    def test_single_conversation_unread_count(self):
+        Inbox.send_message(self.friend1, self.user, "Hello")
+        Inbox.send_message(self.friend1, self.user, "Hello again")
+
+        response = self.client.get("/conversations/unread/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["partner_id"], self.friend1.id)
+        self.assertEqual(response.data[0]["unread_count"], 2)
+
+    def test_multiple_conversations_unread_counts(self):
+        Inbox.send_message(self.friend1, self.user, "From pal1")
+        Inbox.send_message(self.friend1, self.user, "From pal1 again")
+        Inbox.send_message(self.friend2, self.user, "From pal2")
+
+        response = self.client.get("/conversations/unread/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 2)
+
+        by_id = {r["partner_id"]: r["unread_count"] for r in response.data}
+        self.assertEqual(by_id[self.friend1.id], 2)
+        self.assertEqual(by_id[self.friend2.id], 1)
+
+    def test_read_messages_excluded_from_count(self):
+        msg, _ = Inbox.send_message(self.friend1, self.user, "Read me")
+        Inbox.read_message(msg.id)
+
+        Inbox.send_message(self.friend1, self.user, "Unread")
+
+        response = self.client.get("/conversations/unread/")
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["unread_count"], 1)
+
+    def test_sent_messages_not_counted(self):
+        Inbox.send_message(self.user, self.friend1, "From me")
+
+        response = self.client.get("/conversations/unread/")
+        self.assertEqual(response.data, [])
+
+    def test_unread_requires_auth(self):
+        anon_client = APIClient()
+        response = anon_client.get("/conversations/unread/")
         self.assertEqual(response.status_code, 403)
