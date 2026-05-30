@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "drf-directmessages"
-version = "0.0.1"
+version = "0.9.7"
 description = "A small, lightweight REST endpoint for direct messaging between users."
 readme = "README.md"
 license = "AGPL-3.0"
