@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status, views
 from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
@@ -13,6 +14,7 @@ from .models import Message
 from .serializers import (
     ConversationSerializer,
     ConversationUnreadSerializer,
+    ErrorSerializer,
     MessageSendSerializer,
     MessageSerializer,
     UnreadMessageSerializer,
@@ -42,6 +44,12 @@ class MessageViewBase:
         return get_object_or_404(User, id=self.kwargs["pk"])
 
 
+@extend_schema(
+    tags=["Messages"],
+    summary="Get unread message count",
+    description="Returns the authenticated user's ID and count of unread messages.",
+    responses={200: UnreadMessageSerializer},
+)
 class UnreadMessagesView(MessageViewBase, views.APIView):
     def get(self, request):
         user = self.get_user()
@@ -49,6 +57,12 @@ class UnreadMessagesView(MessageViewBase, views.APIView):
         return Response(data=serializer.data)
 
 
+@extend_schema(
+    tags=["Conversations"],
+    summary="List conversation partners",
+    description="Returns a paginated list of users the authenticated user has had conversations with.",
+    responses={200: ConversationSerializer(many=True)},
+)
 class ConversationListView(MessageViewBase, generics.ListAPIView):
     serializer_class = ConversationSerializer
     pagination_class = ConversationCursorPagination
@@ -63,6 +77,12 @@ class ConversationListView(MessageViewBase, generics.ListAPIView):
         ).distinct()
 
 
+@extend_schema(
+    tags=["Conversations"],
+    summary="Unread counts per conversation",
+    description="Returns a list of conversation partners with their unread message counts.",
+    responses={200: ConversationUnreadSerializer(many=True)},
+)
 class ConversationUnreadView(MessageViewBase, generics.ListAPIView):
     serializer_class = ConversationUnreadSerializer
     pagination_class = None
@@ -89,6 +109,23 @@ class ConversationUnreadView(MessageViewBase, generics.ListAPIView):
         return Response(serializer.data)
 
 
+@extend_schema(
+    tags=["Messages"],
+    summary="List messages in a conversation",
+    description="Returns a paginated list of messages between the authenticated user and the specified user. Inbound messages are marked as read on access.",
+    responses={200: MessageSerializer(many=True)},
+)
+@extend_schema(
+    tags=["Messages"],
+    summary="Send a message",
+    description="Send a message to the specified user from within a conversation view.",
+    request=MessageSendSerializer,
+    responses={
+        201: MessageSerializer(many=True),
+        400: ErrorSerializer,
+    },
+    methods=["POST"],
+)
 class MessageListView(MessageViewBase, generics.ListCreateAPIView):
     serializer_class = MessageSerializer
     pagination_class = MessageCursorPagination
@@ -122,6 +159,15 @@ class MessageListView(MessageViewBase, generics.ListCreateAPIView):
         )
 
 
+@extend_schema(
+    tags=["Messages"],
+    summary="Delete a message",
+    description="Soft-deletes a message for the authenticated user. The message remains visible to the other participant.",
+    responses={
+        204: None,
+        404: ErrorSerializer,
+    },
+)
 class MessageDeleteView(MessageViewBase, generics.DestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         message_id = kwargs.get("pk")
@@ -136,6 +182,16 @@ class MessageDeleteView(MessageViewBase, generics.DestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+@extend_schema(
+    tags=["Messages"],
+    summary="Send a direct message",
+    description="Send a direct message to the specified user.",
+    request=MessageSendSerializer,
+    responses={
+        201: MessageSerializer,
+        400: ErrorSerializer,
+    },
+)
 class MessageSendView(MessageViewBase, generics.CreateAPIView):
     serializer_class = MessageSendSerializer
 

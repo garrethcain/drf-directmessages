@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 from .models import Message
 
@@ -11,6 +12,7 @@ User = get_user_model()
 class UnreadMessageSerializer(serializers.ModelSerializer):
     count = serializers.SerializerMethodField()
 
+    @extend_schema_field(serializers.IntegerField())
     def get_count(self, obj):
         return Message.objects.filter(
             read_at=None, recipient=obj, hidden_for_recipient__isnull=True
@@ -36,14 +38,19 @@ class ConversationSerializer(serializers.ModelSerializer):
 
 
 class ConversationUnreadSerializer(serializers.Serializer):
-    partner_id = serializers.IntegerField()
-    partner_username = serializers.CharField()
-    unread_count = serializers.IntegerField()
+    partner_id = serializers.IntegerField(help_text="ID of the conversation partner")
+    partner_username = serializers.CharField(
+        help_text="Username of the conversation partner"
+    )
+    unread_count = serializers.IntegerField(
+        help_text="Number of unread messages from this partner"
+    )
 
 
 class MessageSerializer(serializers.ModelSerializer):
     direction = serializers.SerializerMethodField()
 
+    @extend_schema_field(serializers.ChoiceField(choices=["in", "out"]))
     def get_direction(self, obj):
         if not isinstance(obj, Message):
             return ""
@@ -77,3 +84,7 @@ class MessageSendSerializer(serializers.ModelSerializer):
             "id",
             "content",
         )
+
+
+class ErrorSerializer(serializers.Serializer):
+    detail = serializers.CharField()
