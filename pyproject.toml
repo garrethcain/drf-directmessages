@@ -46,10 +46,8 @@ DJANGO_SETTINGS_MODULE = "tests.settings"
 pythonpath = ["."]
 
 [tool.semantic_release]
-version_variable = ["directmessages/__init__.py:__version__"]
+version_variables = ["directmessages/__init__.py:__version__"]
+version_toml = ["pyproject.toml:project.version"]
 branch = "master"
-upload_to_pypi = true
-upload_to_release = true
-build_command = "uv build"
 changelog_file = "CHANGELOG.md"
 commit_message = "chore(release): {version}"

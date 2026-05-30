@@ -12,26 +12,15 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.released }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --group dev
-
-      - name: Run tests
-        run: uv run pytest
-
       - name: Python Semantic Release
+        id: release
         uses: python-semantic-release/python-semantic-release@v9
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -47,14 +36,15 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12
 
       - name: Install dependencies
         run: uv sync --group dev
+
+      - name: Run tests
+        run: uv run pytest
 
       - name: Build package
         run: uv build
