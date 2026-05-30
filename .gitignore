@@ -127,3 +127,6 @@ DebugSettings.js
 !docs/build
 scoreboard/data
 db.sqlite3
+
+# UV
+.python-version

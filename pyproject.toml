@@ -1,21 +1,55 @@
-[tool.poetry]
-name = "drf-directmessages"
-version = "0.0.1"
-description = "An API allowing users to directly message each other."
-authors = ["Garreth Cain <garrethccain@gmail.com>"]
-readme = "README.md"
-packages = [{include = "drf_directmessages"}]
-
-[tool.poetry.dependencies]
-python = "^3.9"
-django = "^4.2.1"
-djangorestframework = "^3.14.0"
-
-
-[tool.poetry.group.test.dependencies]
-pytest = "^7.3.1"
-requests-mock = "^1.10.0"
-
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "drf-directmessages"
+version = "0.9.7"
+description = "A small, lightweight REST endpoint for direct messaging between users."
+readme = "README.md"
+license = "AGPL-3.0"
+requires-python = ">=3.10"
+authors = [{ name = "Garreth Cain", email = "garrethccain@gmail.com" }]
+keywords = ["django", "drf", "direct-messages", "messaging", "api"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Web Environment",
+  "Framework :: Django",
+  "Framework :: Django :: 4.2",
+  "Framework :: Django :: 5.0",
+  "Framework :: Django :: 5.1",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: GNU Affero General Public License v3",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: WWW/HTTP",
+]
+dependencies = ["django>=4.2", "djangorestframework>=3.14"]
+
+[project.urls]
+Homepage = "https://github.com/garrethcain/drf-directmessages"
+Repository = "https://github.com/garrethcain/drf-directmessages"
+
+[dependency-groups]
+dev = ["pytest>=8.0", "pytest-django>=4.8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["directmessages"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+pythonpath = ["."]
+
+[tool.semantic_release]
+version_variable = ["directmessages/__init__.py:__version__"]
+branch = "master"
+upload_to_pypi = true
+upload_to_release = true
+build_command = "uv build"
+changelog_file = "CHANGELOG.md"
+commit_message = "chore(release): {version}"

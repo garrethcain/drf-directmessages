@@ -1,23 +1,22 @@
-from drf_directmessages.apps import Inbox
-from drf_directmessages.models import Message
+from directmessages.apps import Inbox
+from directmessages.models import Message
 
-from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 
 User = get_user_model()
 
+
 class MessageSendTestCase(TestCase):
     def setUp(self):
-        self.u1 = User.objects.create(email='someuser@tests.com')
-        self.u2 = User.objects.create(email='someotheruser@tests.com')
+        self.u1 = User.objects.create(username="user1", email="someuser@tests.com")
+        self.u2 = User.objects.create(username="user2", email="someotheruser@tests.com")
 
     def test_send_message(self):
         init_value = Message.objects.all().count()
 
-        message, status = Inbox.send_message(self.u1, 
-                                             self.u2, "This is a message")
+        message, status = Inbox.send_message(self.u1, self.u2, "This is a message")
 
         after_value = Message.objects.all().count()
 
@@ -28,8 +27,8 @@ class MessageSendTestCase(TestCase):
 
 class MessageReadingTestCase(TestCase):
     def setUp(self):
-        self.u1 = User.objects.create(email='someuser@tests.com')
-        self.u2 = User.objects.create(email='someotheruser@tests.com')
+        self.u1 = User.objects.create(username="user1", email="someuser@tests.com")
+        self.u2 = User.objects.create(username="user2", email="someotheruser@tests.com")
 
     def test_unread_messages(self):
         Inbox.send_message(self.u1, self.u2, "This is a message")
@@ -53,8 +52,9 @@ class MessageReadingTestCase(TestCase):
         self.assertEqual(unread_messages_after.count(), 0)
 
     def test_reading_formatted(self):
-        message, status = Inbox.send_message(self.u2, self.u1, 
-                                             "This is just another message")
+        message, status = Inbox.send_message(
+            self.u2, self.u1, "This is just another message"
+        )
 
         unread_messages = Inbox.get_unread_messages(self.u1)
         self.assertEqual(unread_messages.count(), 1)
@@ -62,31 +62,28 @@ class MessageReadingTestCase(TestCase):
         message = Inbox.read_message_formatted(message.id)
         unread_messages_after = Inbox.get_unread_messages(self.u1)
 
-        self.assertEqual(message, 
-                         f"{self.u2.email}: This is just another message")
+        self.assertEqual(message, f"{self.u2.email}: This is just another message")
         self.assertEqual(unread_messages_after.count(), 0)
 
 
 class ConversationTestCase(TestCase):
     def setUp(self):
-        self.u1 = User.objects.create(email='user@tests.com')
-        self.u2 = User.objects.create(email='admin@tests.com')
-        self.u3 = User.objects.create(email='postman@tests.com')
-        self.u4 = User.objects.create(email='chef@tests.com')
+        self.u1 = User.objects.create(username="user1", email="user@tests.com")
+        self.u2 = User.objects.create(username="admin", email="admin@tests.com")
+        self.u3 = User.objects.create(username="postman", email="postman@tests.com")
+        self.u4 = User.objects.create(username="chef", email="chef@tests.com")
 
-        # Sender U1
         Inbox.send_message(self.u1, self.u2, "This is a message to User 2")
         Inbox.send_message(self.u1, self.u3, "This is a message to User 3")
         Inbox.send_message(self.u1, self.u4, "This is a message to User 4")
 
-        # Sender U2
         Inbox.send_message(self.u2, self.u1, "This is a message to User 1")
         Inbox.send_message(self.u2, self.u3, "This is a message to User 3")
         Inbox.send_message(self.u2, self.u4, "This is a message to User 4")
 
-        # Some more message between U1 and U2
-        Inbox.send_message(self.u1, self.u2, 
-                           "Hey, thanks for sending this message back")
+        Inbox.send_message(
+            self.u1, self.u2, "Hey, thanks for sending this message back"
+        )
         Inbox.send_message(self.u2, self.u1, "No problem")
 
     def test_all_conversations(self):
@@ -110,14 +107,15 @@ class ConversationTestCase(TestCase):
         self.assertEqual(conversation.count(), 4)
         self.assertEqual(unread_messages_after.count(), 2)
 
-        conversation_limited = Inbox.get_conversation(self.u1, self.u2, 
-                                                      limit=2, reversed=True)
+        conversation_limited = Inbox.get_conversation(
+            self.u1, self.u2, limit=2, reversed=True
+        )
         self.assertEqual(conversation_limited.count(), 2)
 
         self.assertEqual(conversation[0].content, "This is a message to User 2")
-        self.assertEqual(conversation[len(conversation) - 1].content, 
-                         "No problem")
+        self.assertEqual(conversation[len(conversation) - 1].content, "No problem")
         self.assertEqual(conversation_limited[0].content, "No problem")
         self.assertEqual(
             conversation_limited[len(conversation_limited) - 1].content,
-                         "Hey, thanks for sending this message back")
+            "Hey, thanks for sending this message back",
+        )

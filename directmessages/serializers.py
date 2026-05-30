@@ -12,7 +12,6 @@ class UnreadMessageSerializer(serializers.ModelSerializer):
     count = serializers.SerializerMethodField()
 
     def get_count(self, obj):
-        breakpoint()
         return Message.objects.filter(read_at=None, recipient=obj).count()
 
     class Meta:
@@ -24,7 +23,6 @@ class UnreadMessageSerializer(serializers.ModelSerializer):
 
 
 class ConversationSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = User
         fields = (
@@ -45,11 +43,7 @@ class MessageSerializer(serializers.ModelSerializer):
         user_id = request.user if request else None
         if type(obj) != Message:
             return ""
-        return (
-            "in" if user_id == obj.recipient
-            else
-            "out"
-        )
+        return "in" if user_id == obj.recipient else "out"
 
     class Meta:
         model = Message
@@ -71,7 +65,6 @@ class MessageSerializer(serializers.ModelSerializer):
 
 
 class MessageSendSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Message
         fields = (
@@ -79,7 +72,7 @@ class MessageSendSerializer(serializers.ModelSerializer):
             "content",
         )
         read_only_fields = (
-            " sender",
+            "sender",
             "sent_at",
             "read_at",
         )

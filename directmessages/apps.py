@@ -1,14 +1,14 @@
-from django.apps import AppConfig
+from django.apps import AppConfig as BaseAppConfig
 
 Inbox = None
 
 
-class AppConfig(AppConfig):
+class DirectmessagesConfig(BaseAppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "directmessages"
 
     def ready(self):
-        # For convenience
         from .services import MessagingService
+
         global Inbox
         Inbox = MessagingService()
