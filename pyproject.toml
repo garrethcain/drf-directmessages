@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "drf-directmessages"
-version = "0.9.8"
+version = "0.9.9"
 description = "A small, lightweight REST endpoint for direct messaging between users."
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -34,6 +34,7 @@ dependencies = ["django>=4.2", "djangorestframework>=3.14"]
 [project.urls]
 Homepage = "https://github.com/garrethcain/drf-directmessages"
 Repository = "https://github.com/garrethcain/drf-directmessages"
+
 
 
 

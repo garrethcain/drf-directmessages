@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.9.9 (2026-05-30)
+
+### Bug Fixes
+
+- **ci**: Checkout release tag instead of branch head in publish job
+  ([`3c61f8b`](https://github.com/garrethcain/drf-directmessages/commit/3c61f8b4a34e4fba43642725ac403de14dabc967))
+
+
 ## v0.9.8 (2026-05-30)
 
 ### Bug Fixes
