@@ -1,6 +1,30 @@
 # CHANGELOG
 
 
+## v0.10.0 (2026-05-30)
+
+### Features
+
+- Add drf-spectacular OpenAPI schema annotations
+  ([`66b9397`](https://github.com/garrethcain/drf-directmessages/commit/66b93972035b06b4192090f4a99d8781ff55e1de))
+
+- Add drf-spectacular as optional dev dependency - Annotate all views with @extend_schema for
+  summaries, descriptions, and response types - Annotate serializer method fields (count, direction)
+  with @extend_schema_field for proper OpenAPI types - Add ErrorSerializer for 4xx response
+  documentation - Update test settings with SpectacularAPIView and schema config - Add schema
+  validation test ensuring all endpoints are documented
+
+- Add soft delete, cursor pagination, and per-conversation unread
+  ([`bbd277e`](https://github.com/garrethcain/drf-directmessages/commit/bbd277e895986dba1820058e334c4f1b252b9de5))
+
+- Add hidden_for_sender/hidden_for_recipient fields to Message model for per-user soft delete via
+  DELETE /messages/<id>/ - Add cursor-based pagination (page_size=50) to conversation and message
+  list views for production-scale usage - Add GET /conversations/unread/ endpoint returning
+  per-conversation unread counts with partner details - Update all service queries to exclude
+  soft-deleted messages - Update existing tests for paginated response shape - Add 17 new tests
+  covering all three features
+
+
 ## v0.9.9 (2026-05-30)
 
 ### Bug Fixes
