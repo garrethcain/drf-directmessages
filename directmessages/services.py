@@ -24,10 +24,10 @@ class MessagingService:
         return message, 200
 
     def get_unread_messages(self, user):
-        return Message.objects.all().filter(recipient=user, read_at=None).distinct()
+        return Message.objects.filter(recipient=user, read_at=None)
 
     def get_unread_message_count(self, user):
-        return Message.objects.all().filter(recipient=user, read_at=None).count()
+        return Message.objects.filter(recipient=user, read_at=None).count()
 
     def read_message(self, message_id):
         try:
@@ -46,9 +46,7 @@ class MessagingService:
             return ""
 
     def get_conversations(self, user):
-        all_conversations = Message.objects.all().filter(
-            Q(sender=user) | Q(recipient=user)
-        )
+        all_conversations = Message.objects.filter(Q(sender=user) | Q(recipient=user))
 
         contacts = []
         for conversation in all_conversations:
@@ -64,17 +62,18 @@ class MessagingService:
     ):
         users = [user1, user2]
         order = "-pk" if reversed else "pk"
-        conversation = (
-            Message.objects.all()
-            .filter(sender__in=users, recipient__in=users)
-            .order_by(order)
-        )
+        conversation = Message.objects.filter(
+            sender__in=users, recipient__in=users
+        ).order_by(order)
 
         if limit:
             conversation = conversation[:limit]
 
         if mark_read:
-            for message in conversation:
+            unread = [
+                m for m in conversation if m.recipient == user1 and m.read_at is None
+            ]
+            for message in unread:
                 self.mark_as_read(message)
 
         return conversation
@@ -85,4 +84,4 @@ class MessagingService:
             message_read.send(
                 sender=message, from_user=message.sender, to=message.recipient
             )
-            message.save()
+            message.save(update_fields=["read_at"])

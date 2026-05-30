@@ -1,11 +1,8 @@
-
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
+from django.shortcuts import get_object_or_404
 
-from rest_framework import (
-    generics,
-    status,
-    views)
+from rest_framework import generics, status, views
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
@@ -15,7 +12,8 @@ from .serializers import (
     ConversationSerializer,
     MessageSendSerializer,
     MessageSerializer,
-    UnreadMessageSerializer)
+    UnreadMessageSerializer,
+)
 from .services import MessagingService
 
 
@@ -23,13 +21,13 @@ User = get_user_model()
 
 
 class MessageViewBase:
-    permission_classes = [IsAuthenticated,]
+    permission_classes = [IsAuthenticated]
 
     def get_user(self):
         return self.request.user
 
     def get_recipient(self):
-        return User.objects.get(id=self.kwargs['pk'])
+        return get_object_or_404(User, id=self.kwargs["pk"])
 
 
 class UnreadMessagesView(MessageViewBase, views.APIView):
@@ -53,19 +51,22 @@ class MessageListView(MessageViewBase, generics.ListCreateAPIView):
 
     def get_queryset(self):
         user1 = self.get_user()
-        user2 = self.kwargs['pk']
+        user2 = self.get_recipient()
         return Inbox.get_conversation(
-                user1=user1, user2=user2, mark_read=True).order_by('-sent_at')
+            user1=user1, user2=user2, mark_read=True
+        ).order_by("-sent_at")
 
     def create(self, request, *args, **kwargs):
         sender = self.get_user()
         recipient = self.get_recipient()
-        content = request.data.get('content')
-        _ = Message.objects.create(
-                sender=sender, recipient=recipient, content=content)
-        return Response(MessageSerializer(
-                self.get_queryset(),
-                many=True).data, status=status.HTTP_201_CREATED)
+        content = request.data.get("content")
+        _ = Message.objects.create(sender=sender, recipient=recipient, content=content)
+        return Response(
+            MessageSerializer(
+                self.get_queryset(), many=True, context={"request": request}
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class MessageSendView(MessageViewBase, generics.CreateAPIView):
@@ -74,12 +75,11 @@ class MessageSendView(MessageViewBase, generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         sender = self.get_user()
         recipient = self.get_recipient()
-        content = request.data.get('content')
+        content = request.data.get("content")
 
         ms = MessagingService()
         try:
-            ms.send_message(
-                    sender=sender, recipient=recipient, message=content)
+            ms.send_message(sender=sender, recipient=recipient, message=content)
         except ValidationError as e:
-            return Response(e, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(status=status.HTTP_201_CREATED)
