@@ -7,7 +7,7 @@ name = "drf-directmessages"
 version = "0.9.7"
 description = "A small, lightweight REST endpoint for direct messaging between users."
 readme = "README.md"
-license = "AGPL-3.0"
+license = "AGPL-3.0-only"
 requires-python = ">=3.10"
 authors = [{ name = "Garreth Cain", email = "garrethccain@gmail.com" }]
 keywords = ["django", "drf", "direct-messages", "messaging", "api"]

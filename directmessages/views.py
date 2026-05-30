@@ -1,6 +1,7 @@
-from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 
 from rest_framework import generics, status, views
 from rest_framework.response import Response
@@ -14,7 +15,6 @@ from .serializers import (
     MessageSerializer,
     UnreadMessageSerializer,
 )
-from .services import MessagingService
 
 
 User = get_user_model()
@@ -31,8 +31,6 @@ class MessageViewBase:
 
 
 class UnreadMessagesView(MessageViewBase, views.APIView):
-    serializer_class = UnreadMessageSerializer
-
     def get(self, request):
         user = self.get_user()
         serializer = UnreadMessageSerializer(user)
@@ -43,7 +41,10 @@ class ConversationListView(MessageViewBase, generics.ListAPIView):
     serializer_class = ConversationSerializer
 
     def get_queryset(self):
-        return Inbox.get_conversations(self.get_user())
+        user = self.get_user()
+        return User.objects.filter(
+            Q(sent_dm__recipient=user) | Q(received_dm__sender=user)
+        ).distinct()
 
 
 class MessageListView(MessageViewBase, generics.ListCreateAPIView):
@@ -59,8 +60,17 @@ class MessageListView(MessageViewBase, generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         sender = self.get_user()
         recipient = self.get_recipient()
-        content = request.data.get("content")
-        _ = Message.objects.create(sender=sender, recipient=recipient, content=content)
+        content = request.data.get("content", "")
+
+        if not content:
+            return Response(
+                {"detail": "content is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        message, _ = Inbox.send_message(
+            sender=sender, recipient=recipient, message=content
+        )
         return Response(
             MessageSerializer(
                 self.get_queryset(), many=True, context={"request": request}
@@ -75,11 +85,21 @@ class MessageSendView(MessageViewBase, generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         sender = self.get_user()
         recipient = self.get_recipient()
-        content = request.data.get("content")
+        content = request.data.get("content", "")
 
-        ms = MessagingService()
+        if not content:
+            return Response(
+                {"detail": "content is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            ms.send_message(sender=sender, recipient=recipient, message=content)
+            message, _ = Inbox.send_message(
+                sender=sender, recipient=recipient, message=content
+            )
         except ValidationError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(status=status.HTTP_201_CREATED)
+        return Response(
+            MessageSerializer(message, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )

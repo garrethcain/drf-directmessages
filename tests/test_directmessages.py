@@ -108,7 +108,7 @@ class ConversationTestCase(TestCase):
         self.assertEqual(unread_messages_after.count(), 2)
 
         conversation_limited = Inbox.get_conversation(
-            self.u1, self.u2, limit=2, reversed=True
+            self.u1, self.u2, limit=2, reverse_order=True
         )
         self.assertEqual(conversation_limited.count(), 2)
 

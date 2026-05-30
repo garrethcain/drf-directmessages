@@ -27,11 +27,9 @@ class ConversationSerializer(serializers.ModelSerializer):
         model = User
         fields = (
             "id",
-            "email",
+            "username",
             "first_name",
             "last_name",
-            "is_active",
-            "date_joined",
         )
 
 
@@ -39,11 +37,11 @@ class MessageSerializer(serializers.ModelSerializer):
     direction = serializers.SerializerMethodField()
 
     def get_direction(self, obj):
-        request = self.context.get("request")
-        user_id = request.user if request else None
-        if type(obj) != Message:
+        if not isinstance(obj, Message):
             return ""
-        return "in" if user_id == obj.recipient else "out"
+        request = self.context.get("request")
+        user = request.user if request else None
+        return "in" if user == obj.recipient else "out"
 
     class Meta:
         model = Message
@@ -70,9 +68,4 @@ class MessageSendSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "content",
-        )
-        read_only_fields = (
-            "sender",
-            "sent_at",
-            "read_at",
         )

@@ -1,8 +1,13 @@
-from .models import Message
-from .signals import message_read, message_sent
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db.models import Q
+
+from .models import Message
+from .signals import message_read, message_sent
+
+
+User = get_user_model()
 
 
 class MessagingService:
@@ -35,7 +40,7 @@ class MessagingService:
             self.mark_as_read(message)
             return message.content
         except Message.DoesNotExist:
-            return ""
+            return None
 
     def read_message_formatted(self, message_id):
         try:
@@ -43,30 +48,28 @@ class MessagingService:
             self.mark_as_read(message)
             return f"{message.sender.email}: {message.content}"
         except Message.DoesNotExist:
-            return ""
+            return None
 
     def get_conversations(self, user):
-        all_conversations = Message.objects.filter(Q(sender=user) | Q(recipient=user))
-
-        contacts = []
-        for conversation in all_conversations:
-            if conversation.sender != user:
-                contacts.append(conversation.sender)
-            elif conversation.recipient != user:
-                contacts.append(conversation.recipient)
-
-        return list(set(contacts))
+        sender_ids = Message.objects.filter(sender=user).values_list(
+            "recipient_id", flat=True
+        )
+        recipient_ids = Message.objects.filter(recipient=user).values_list(
+            "sender_id", flat=True
+        )
+        contact_ids = set(sender_ids) | set(recipient_ids)
+        return list(User.objects.filter(id__in=contact_ids)) if contact_ids else []
 
     def get_conversation(
-        self, user1, user2, limit=None, reversed=False, mark_read=False
+        self, user1, user2, limit=None, reverse_order=False, mark_read=False
     ):
         users = [user1, user2]
-        order = "-pk" if reversed else "pk"
+        order = "-pk" if reverse_order else "pk"
         conversation = Message.objects.filter(
             sender__in=users, recipient__in=users
         ).order_by(order)
 
-        if limit:
+        if limit is not None:
             conversation = conversation[:limit]
 
         if mark_read:
