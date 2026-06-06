@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -11,9 +12,20 @@ User = get_user_model()
 
 
 class MessagingService:
+    def _is_recipient_allowed(self, sender, recipient):
+        allowed = getattr(settings, "DIRECTMESSAGES_ALLOWED_RECIPIENTS", None)
+        if not allowed:
+            return True
+        if sender.id in allowed:
+            return True
+        return recipient.id in allowed
+
     def send_message(self, sender, recipient, message):
         if sender == recipient:
             raise ValidationError("You can't send messages to yourself.")
+
+        if not self._is_recipient_allowed(sender, recipient):
+            raise ValidationError("You are not allowed to message this user.")
 
         message = Message(
             sender=sender,

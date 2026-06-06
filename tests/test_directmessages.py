@@ -2,7 +2,8 @@ from directmessages.apps import Inbox
 from directmessages.models import Message
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.exceptions import ValidationError
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 
@@ -479,3 +480,68 @@ class ConversationUnreadAPITestCase(TestCase):
         anon_client = APIClient()
         response = anon_client.get("/conversations/unread/")
         self.assertEqual(response.status_code, 403)
+
+
+class RestrictRecipientTestCase(TestCase):
+    def setUp(self):
+        self.customer = create_user("customer", "customer@tests.com")
+        self.support = create_user("support", "support@tests.com")
+        self.other = create_user("other", "other@tests.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.customer)
+
+    @override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=None)
+    def test_no_setting_means_no_restriction(self):
+        msg, code = Inbox.send_message(self.customer, self.other, "Hi")
+        self.assertEqual(code, 200)
+
+    @override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=[])
+    def test_empty_list_means_no_restriction(self):
+        msg, code = Inbox.send_message(self.customer, self.other, "Hi")
+        self.assertEqual(code, 200)
+
+    @override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=[])
+    def test_user_can_message_allowed_recipient(self):
+        with override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=[self.support.id]):
+            msg, code = Inbox.send_message(self.customer, self.support, "Help!")
+            self.assertEqual(code, 200)
+
+    @override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=[])
+    def test_user_cannot_message_non_allowed(self):
+        with override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=[self.support.id]):
+            with self.assertRaises(ValidationError):
+                Inbox.send_message(self.customer, self.other, "Hi")
+
+    @override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=[])
+    def test_allowed_user_can_message_anyone(self):
+        with override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=[self.support.id]):
+            msg, code = Inbox.send_message(self.support, self.customer, "Reply")
+            self.assertEqual(code, 200)
+
+            msg2, code2 = Inbox.send_message(self.support, self.other, "Outreach")
+            self.assertEqual(code2, 200)
+
+    @override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=[])
+    def test_api_returns_400_for_restricted_recipient(self):
+        with override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=[self.support.id]):
+            support_client = APIClient()
+            support_client.force_authenticate(user=self.support)
+            support_client.post(
+                f"/send/{self.customer.id}/",
+                {"content": "Hello customer"},
+            )
+
+            response = self.client.post(
+                f"/send/{self.other.id}/",
+                {"content": "Hi"},
+            )
+            self.assertEqual(response.status_code, 400)
+
+    @override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=[])
+    def test_api_allows_message_to_allowed_recipient(self):
+        with override_settings(DIRECTMESSAGES_ALLOWED_RECIPIENTS=[self.support.id]):
+            response = self.client.post(
+                f"/send/{self.support.id}/",
+                {"content": "Help me!"},
+            )
+            self.assertEqual(response.status_code, 201)
