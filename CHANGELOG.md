@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.11.0 (2026-06-06)
+
+### Chores
+
+- Update the docs and changed the licence
+  ([`29c6062`](https://github.com/garrethcain/drf-directmessages/commit/29c6062a58678d7bdaf008fe94d18a002c4cbe5f))
+
+### Features
+
+- Added a whitelist for recipients
+  ([`485b26f`](https://github.com/garrethcain/drf-directmessages/commit/485b26fea79a4efd3fb1994934d4072e949d5e7f))
+
+
 ## v0.10.0 (2026-05-30)
 
 ### Features
